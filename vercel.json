@@ -2,27 +2,13 @@
     "version": 2,
     "builds": [
         {
-            "src": "api/main.py",
-            "use": "@vercel/python",
-            "config": {
-                "maxDuration": 30
-            }
+            "src": "Dockerfile",
+            "use": "@vercel/docker"
         }
     ],
-    "rewrites": [
-        {
-            "source": "/",
-            "destination": "/api/templates/index.html"
-        }
-    ],
-    "cleanUrls": true,
     "env": {
         "FLASK_ENV": "production",
         "API_KEY": "5GqlAgbTEug2mS2cjwhOQMJKuh7sLfAZ"
     },
-    "build": {
-        "env": {
-            "PYTHON_VERSION": "3.9"
-        }
-    }
+    "cleanUrls": true
 }

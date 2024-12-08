@@ -3,18 +3,14 @@ from mistralai import Mistral
 import json
 import scipy.io
 import matplotlib.pyplot as plt
-from flask import Flask, request, jsonify
-import os
-import scipy.io
-import matplotlib.pyplot as plt
 import numpy as np
 import base64
-from flask import Flask, request, jsonify,render_template
+from flask import Flask, request, jsonify, render_template
+import re
 
 app = Flask(__name__)
 
-
-api_key = "5GqlAgbTEug2mS2cjwhOQMJKuh7sLfAZ" 
+api_key = "5GqlAgbTEug2mS2cjwhOQMJKuh7sLfAZ"
 client = Mistral(api_key=api_key)
 
 data = [{
@@ -65,6 +61,15 @@ def process_stock_data():
         'Do not answer anything outside the given data.\n\n'
         f'Stock Data: {data}\n\n'
         f'Question: {userPrompt} '
+        'give me some data as per your answer to show them in a graph, and give those data in a array named stock_data and  so that I can easily get them from your response.'
+        'Please provide the data in the following structured format: '
+        '{'
+        '"stock_data": ['
+        '{"symbol": "AAPL", "open": value, "close": value, "high": value, "low": value}, '
+        '{"symbol": "GOOGL", "open": value, "close": value, "high": value, "low": value}, '
+        # Repeat for each stock in the data
+        ']'
+        'and stock_data should be after your actual answer. so you should have two part answer ,1) the analitical answer and 2) stock_data in a python code like ```python stock_data```,and do not write anything extra besides those two '
     )
 
     # Fetch response from Mistral API
@@ -79,98 +84,85 @@ def process_stock_data():
     # Extract the response content
     response_content = response.choices[0].message.content
     print(f"API Response:\n{response_content}\n")
+    match = re.search(r"stock_data\s*=\s*(\[[\s\S]*?\]|\{[\s\S]*?\})", response_content)
+    base64_encoded_image = ''
 
-    # Extract and purify data for MATLAB
-    stocks = ["AAPL", "GOOGL", "MSFT"]
-    opening_price = []
-    closing_price = []
-    high_price = []
-    low_price = []
+    if match:
+        python_code = match.group(1).strip()
+        print("Extracted Python Code we get :")
+        print(python_code)
+        json_str = python_code.replace("'", "\"").strip()
+        
+        # Parse the string as a JSON object
+        json_data = json.loads(json_str)
+        print("json output  :")
+        print(json.dumps(json_data, indent=4))
+        mat_data = json_data
+        # stocks = mat_data  # Convert MATLAB cell array to Python list
+        # opening_price = mat_data['open']
+        # closing_price = mat_data['close']
+        # high_price = mat_data['high']
+        # low_price = mat_data['low']
+        company = []
+        opening_price = []
+        closing_price = []
+        high_price = []
+        low_price = []
 
-    # Parse the stock data directly from the original `data` for precise values
-    for stock in stocks:
-        stock_info = data[0][stock]
-        opening_price.append(float(stock_info["1. open"]))
-        closing_price.append(float(stock_info["4. close"]))
-        high_price.append(float(stock_info["2. high"]))
-        low_price.append(float(stock_info["3. low"]))
+        # Parse the stock data directly from the original `data` for precise values
+        for stock in mat_data:
+            print("stock :: ",stock)
+            stock_info = stock
+            company.append(float(stock_info["open"]))
+            opening_price.append(float(stock_info["open"]))
+            closing_price.append(float(stock_info["close"]))
+            high_price.append(float(stock_info["high"]))
+            low_price.append(float(stock_info["low"]))
 
-    # Save purified data into a MATLAB-compatible .mat file
-    mat_data = {
-        "stocks": stocks,
-        "opening_price": opening_price,
-        "closing_price": closing_price,
-        "high_price": high_price,
-        "low_price": low_price,
-    }
 
-    scipy.io.savemat("stock_data.mat", mat_data)
-    print("Data saved to stock_data.mat for MATLAB visualization.")
+        # Generate and save the graph as an image
+        plt.figure(figsize=(10, 6))
+        prices = [opening_price, closing_price, high_price, low_price]
+        bar_width = 0.2
+        x = range(len(mat_data))
 
-    # Generate and save the graph as an image
-    plt.figure(figsize=(10, 6))
-    prices = [opening_price, closing_price, high_price, low_price]
-    bar_width = 0.2
-    x = range(len(stocks))
+        for i, price_set in enumerate(prices):
+            plt.bar([p + i * bar_width for p in x], price_set, width=bar_width, label=['Opening Price', 'Closing Price', 'High Price', 'Low Price'][i])
 
-    for i, price_set in enumerate(prices):
-        plt.bar([p + i * bar_width for p in x], price_set, width=bar_width, label=['Opening Price', 'Closing Price', 'High Price', 'Low Price'][i])
+        plt.title('Stock Price Comparison')
+        plt.xlabel('Stocks')
+        plt.ylabel('Price')
+        plt.xticks([p + 1.5 * bar_width for p in x], mat_data)
+        plt.legend(loc='upper left')
+        plt.grid(axis='y', linestyle='--', alpha=0.7)
+        plt.tight_layout()
+        image_path = "stock_prices_comparison.png"
+        plt.savefig(image_path)
+        print(f"Graph saved as {image_path}.")
 
-    plt.title('Stock Price Comparison')
-    plt.xlabel('Stocks')
-    plt.ylabel('Price')
-    plt.xticks([p + 1.5 * bar_width for p in x], stocks)
-    plt.legend(loc='upper left')
-    plt.grid(axis='y', linestyle='--', alpha=0.7)
-    plt.tight_layout()
-    image_path = "stock_prices_comparison.png"
-    plt.savefig(image_path)
-    print(f"Graph saved as {image_path}.")
+        # Provide a downloadable link
+        print(f"Downloadable link for the graph: [Download Graph](sandbox:/mnt/data/{image_path})")
 
-    # Provide a downloadable link
-    print(f"Downloadable link for the graph: [Download Graph](sandbox:/mnt/data/{image_path})")
+        with open(image_path, "rb") as image_file:
+            base64_encoded_image = base64.b64encode(image_file.read()).decode('utf-8')
 
-    # MATLAB visualization script
-    matlab_script = """
-    % Load data from .mat file
-    load('stock_data.mat');
-
-    % Create a grouped bar chart
-    prices = [opening_price; closing_price; high_price; low_price]';
-
-    % Plot the data
-    figure;
-    bar(prices);
-    title('Stock Price Comparison');
-    xlabel('Stocks');
-    ylabel('Price');
-    xticks(1:3);
-    xticklabels(stocks);
-    legend({'Opening Price', 'Closing Price', 'High Price', 'Low Price'}, 'Location', 'NorthWest');
-    grid on;
-    """
-
-    # Save MATLAB script
-    with open("plot_stock_data.m", "w") as f:
-        f.write(matlab_script)
-    print("MATLAB script saved as plot_stock_data.m.")
-    base64_encoded_image=''
-    with open(image_path, "rb") as image_file:
-        base64_encoded_image = base64.b64encode(image_file.read()).decode('utf-8')
-    
-    outPutJson={
+    else:
+            print("No Python code found in the response.")
+    outPutJson = {
         "data": response_content,
-        "image" :base64_encoded_image,
-        "message":"Sucessfully run the propmt"
+        "image": base64_encoded_image,
+        "message": "Successfully run the prompt"
     }
     return outPutJson
+
 @app.route('/download-file/<filename>', methods=['GET'])
 def download_file(filename):
     return app.send_static_file(filename)
+
 @app.route('/')
 def index():
     return render_template('index.html')
+
 if __name__ == '__main__':
-    # app.run(debug=True)
-    port = int(os.environ.get("PORT", 5000))
-    app.run(host="0.0.0.0", port=port,debug=True)
+    port = int(os.environ.get("PORT", 8080))
+    app.run(host="0.0.0.0", port=port, debug=True)

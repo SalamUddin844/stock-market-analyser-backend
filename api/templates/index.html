@@ -1,0 +1,22 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Stock Market Analyzer</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+    <h1>Stock Market Analyzer</h1>
+
+    <input type="text" id="sentenceInput" placeholder="Enter your sentence here" />
+    <button id="sendButton">Submit The Prompt</button>
+
+    <p id="responseMessage"></p>
+    <p id="responseSentence"></p> 
+    <img id="responseImage" alt="API Response Image" style="max-width: 100%; height: auto;" />
+    <button id="downloadButton" style="display:none">Download Image</button>
+
+    <script src="{{ url_for('static', filename='js/script.js') }}"></script>
+</body>
+</html>
